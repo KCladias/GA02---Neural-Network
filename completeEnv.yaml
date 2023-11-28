@@ -1,4 +1,4 @@
-name: uitnn
+name: uitnnn
 channels:
     - conda-forge
     - pytorch

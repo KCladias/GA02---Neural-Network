@@ -13,8 +13,7 @@ import time
 from utils import play_game, play_game2
 from game_environment import Snake, SnakeNumpy
 import tensorflow as tf
-from agent import DeepQLearningAgent, PolicyGradientAgent,\
-                AdvantageActorCriticAgent, mean_huber_loss
+from agent import DeepQLearningAgent
 import json
 
 # some global variables
@@ -49,10 +48,6 @@ agent = DeepQLearningAgent(board_size=board_size, frames=frames, n_actions=n_act
 # check in the same order as class hierarchy
 if(isinstance(agent, DeepQLearningAgent)):
     agent_type = 'DeepQLearningAgent'
-if(isinstance(agent, PolicyGradientAgent)):
-    agent_type = 'PolicyGradientAgent'
-if(isinstance(agent, AdvantageActorCriticAgent)):
-    agent_type = 'AdvantageActorCriticAgent'
 print('Agent is {:s}'.format(agent_type))
 
 # setup the epsilon range and decay rate for epsilon
@@ -70,20 +65,6 @@ if(agent_type in ['DeepQLearningAgent']):
         # or some other pretrained model
         agent.load_model(file_path='models/{:s}'.format(version))
         # agent.set_weights_trainable()
-if(agent_type in ['PolicyGradientAgent']):
-    epsilon, epsilon_end = -1, -1
-    reward_type = 'discounted_future'
-    sample_actions = True
-    exploration_threshold = 0.1
-    n_games_training = 16
-    decay = 1
-if(agent_type in ['AdvantageActorCriticAgent']):
-    epsilon, epsilon_end = -1, -1
-    reward_type = 'current'
-    sample_actions = True
-    exploration_threshold = 0.1
-    n_games_training = 32
-    decay = 1
 
 # decay = np.exp(np.log((epsilon_end/epsilon))/episodes)
 
