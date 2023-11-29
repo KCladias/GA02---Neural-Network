@@ -226,7 +226,7 @@ class Agent():
         """
         return row*self._board_size + col
     
-
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 class DeepQLearningAgent(Agent):
     """This agent learns the game via Q learning
     model outputs everywhere refers to Q values
@@ -241,9 +241,9 @@ class DeepQLearningAgent(Agent):
         Agent.__init__(self, board_size=board_size, frames=frames, buffer_size=buffer_size,
                  gamma=gamma, n_actions=n_actions, use_target_net=use_target_net,
                  version=version)
-        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-        self.reset_models()
         
+        self.reset_models()
+        self.optimizer = optim.RMSprop(self._model.parameters(), lr=0.0005)
 
     def reset_models(self):
         """ Reset all the models by creating new graphs"""
@@ -257,7 +257,7 @@ class DeepQLearningAgent(Agent):
 
         Parameters
         ----------
-        board : Numpy array
+        board : Numpy array or Tensor
             The board state for which to predict action values.
         model : PyTorch Model, optional
             The model to use for prediction, default to self._model if not specified.
@@ -268,9 +268,10 @@ class DeepQLearningAgent(Agent):
             Predicted model outputs on board, 
             of shape board.shape[0] * num actions.
         """
-        # Prepare input (normalize and convert to PyTorch tensor)
-        board = self._prepare_input(board)
-        board_tensor = torch.from_numpy(board).float()
+        # Check if board is a Tensor, if not, convert it
+        if not isinstance(board, torch.Tensor):
+            board = torch.from_numpy(board).float()
+
 
         # Use the specified model or default to self._model
         if model is None:
@@ -281,10 +282,10 @@ class DeepQLearningAgent(Agent):
 
         # Forward pass to get outputs
         with torch.no_grad():
-            model_outputs = model(board_tensor)
+            model_outputs = model(board)
 
-        # Convert outputs back to numpy array
-        return model_outputs.cpu().numpy()
+     
+        return model_outputs
 
     def _prepare_input(self, board):
         """Prepare the input by reshaping and normalizing.
@@ -302,13 +303,16 @@ class DeepQLearningAgent(Agent):
         if board.ndim == 3:
             board = board.reshape((1,) + self._input_shape)
         board = self._normalize_board(board)
-        # Transpose the board to match PyTorch's input shape
-        board = board.transpose(0, 3, 1, 2)
         return board
 
     def _normalize_board(self, board):
-        """Normalize the board before input to the network."""
-        return board.astype(np.float32) / 4.0
+        # Check if the board is a NumPy array and convert it to a PyTorch tensor
+        if isinstance(board, np.ndarray):
+            board = torch.from_numpy(board).float()
+        
+        # Normalize the board
+        return board / 4.0
+
 
     def move(self, board, legal_moves, value=None):
         """Get the action with maximum Q value
@@ -343,25 +347,19 @@ class DeepQLearningAgent(Agent):
                 conv2_config = config['model']['Conv2D_1']
                 conv3_config = config['model']['Conv2D_2']
                 dense_config = config['model']['Dense_1']
+                
 
                 # Layers based on configuration
-                self.conv1 = nn.Conv2d(in_channels=config['frames'], out_channels=conv1_config['filters'], kernel_size=tuple(conv1_config['kernel_size']), padding=1)
+                self.conv1 = nn.Conv2d(in_channels=config['board_size'], out_channels=conv1_config['filters'], kernel_size=tuple(conv1_config['kernel_size']), padding=1)
                 self.conv2 = nn.Conv2d(in_channels=conv1_config['filters'], out_channels=conv2_config['filters'], kernel_size=tuple(conv2_config['kernel_size']), padding=1)
-                self.conv3 = nn.Conv2d(in_channels=conv2_config['filters'], out_channels=conv3_config['filters'], kernel_size=tuple(conv3_config['kernel_size']), padding=1)
-
-                # Calculate size of flattened layer
-                self.fc_input_size = self._calculate_flatten_size(config['board_size'], config['frames'])
+                self.conv3 = nn.Conv2d(in_channels=conv2_config['filters'], out_channels=conv3_config['filters'], kernel_size=tuple(conv3_config['kernel_size']), padding=2)
+                
 
                 # Dense layer
-                self.fc1 = nn.Linear(self.fc_input_size, dense_config['units'])
+                self.fc1 = nn.Linear(1280, dense_config['units'])  # 1280 is the calculated flattened size
 
-                # Output layer
+                # Output layer remains the same
                 self.fc2 = nn.Linear(dense_config['units'], config['n_actions'])
-
-            def _calculate_flatten_size(self, board_size, frames):
-                dummy_input = torch.zeros(1, frames, board_size, board_size)
-                dummy_output = self.conv3(self.conv2(self.conv1(dummy_input)))
-                return int(torch.flatten(dummy_output, start_dim=1).size(1))
 
             def forward(self, x):
                 x = F.relu(self.conv1(x))
@@ -460,41 +458,49 @@ class DeepQLearningAgent(Agent):
         # Sample data from the buffer
         s, a, r, next_s, done, legal_moves = self._buffer.sample(batch_size)
 
+        # PyTorch tensors
+        s = torch.from_numpy(s).long()
+        next_s = torch.from_numpy(next_s).long()
+        a = torch.from_numpy(a).long()
+        r = torch.from_numpy(r).long()
+        done = torch.from_numpy(done).long()
+        legal_moves = torch.from_numpy(legal_moves).float()
+
         # Normalize the board states
         s = self._normalize_board(s)
         next_s = self._normalize_board(next_s)
 
         if reward_clip:
-            r = np.sign(r)
+            r = torch.sign(r)
 
-        # PyTorch tensors
-        s = torch.from_numpy(s).float()
-        next_s = torch.from_numpy(next_s).float()
-        a = torch.from_numpy(a).long()
-        r = torch.from_numpy(r).float()
-        done = torch.from_numpy(done).float()
 
-        #  Q values for current states
+        # Q values for current states
         q_values = self._model(s)
-        # Q values for next states
+
+        # Clone q_values to create target_q_values
+        target_q_values = q_values.clone()
+
+        # Calculate Q values for next states using target network
         next_q_values = self._target_net(next_s) if self._use_target_net else self._model(next_s)
-        # Q values for actions taken
-        q_value = q_values.gather(1, a.unsqueeze(1)).squeeze(1)
 
-        # Q values
+        # Calculate the maximum Q values for next states
         max_next_q_values = next_q_values.max(1)[0]
-        target_q_value = r + self._gamma * max_next_q_values * (1 - done)
 
-        # loss
-        loss = F.smooth_l1_loss(q_value, target_q_value)
+        # Calculate discounted rewards
+        discounted_reward = r + (self._gamma * max_next_q_values.unsqueeze(1)) * (1 - done)
+        discounted_reward = discounted_reward.squeeze()  # Ensure it is 1D
 
-        # Zero gradients, backpropagate, and update the weights
+        # Update target Q values only for the actions taken
+        for i in range(batch_size):
+            target_q_values[i, a[i]] = discounted_reward[i]
+
+        # Compute the loss and update the model
+        loss = F.smooth_l1_loss(q_values, target_q_values)
         self.optimizer.zero_grad()
         loss.backward()
         self.optimizer.step()
 
         return loss.item()
-
 
     def update_target_net(self):
         """Update the weights of the target network in PyTorch."""

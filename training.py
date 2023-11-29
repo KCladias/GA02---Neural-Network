@@ -39,11 +39,6 @@ games_eval = 8
 # setup the agent
 agent = DeepQLearningAgent(board_size=board_size, frames=frames, n_actions=n_actions, 
                            buffer_size=buffer_size, version=version)
-# agent = PolicyGradientAgent(board_size=board_size, frames=frames, n_actions=n_actions, 
-        # buffer_size=2000, version=version)
-# agent = AdvantageActorCriticAgent(board_size=board_size, frames=frames, n_actions=n_actions, 
-                                  # buffer_size=10000, version=version)
-# agent.print_models()
 
 # check in the same order as class hierarchy
 if(isinstance(agent, DeepQLearningAgent)):
@@ -110,18 +105,6 @@ for index in tqdm(range(episodes)):
         loss = agent.train_agent(batch_size=64,
                                  num_games=n_games_training, reward_clip=True)
 
-    if(agent_type in ['AdvantageActorCriticAgent']):
-        # play a couple of games and train on all
-        _, _, total_games = play_game2(env, agent, n_actions, epsilon=epsilon,
-                       n_games=n_games_training, record=True,
-                       sample_actions=sample_actions, reward_type=reward_type,
-                       frame_mode=True, total_games=n_games_training*2)
-        loss = agent.train_agent(batch_size=agent.get_buffer_size(), 
-                                 num_games=total_games, reward_clip=True)
-
-    if(agent_type in ['PolicyGradientAgent', 'AdvantageActorCriticAgent']):
-        # for policy gradient algorithm, we only take current episodes for training
-        agent.reset_buffer()
 
     # check performance every once in a while
     if((index+1)%log_frequency == 0):

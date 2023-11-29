@@ -537,9 +537,16 @@ class DeepQLearningAgent(Agent):
         s, a, r, next_s, done, legal_moves = self._buffer.sample(batch_size)
         if(reward_clip):
             r = np.sign(r)
+
+        print("s=",s)
+        print("a=",a)
+        print("r=",r)
+        print("next=",next_s)
+        print("done=",done)
         # calculate the discounted reward, and then train accordingly
         current_model = self._target_net if self._use_target_net else self._model
         next_model_outputs = self._get_model_outputs(next_s, current_model)
+        print(next_model_outputs)
         # our estimate of expexted future discounted reward
         discounted_reward = r + \
             (self._gamma * np.max(np.where(legal_moves==1, next_model_outputs, -np.inf), 
