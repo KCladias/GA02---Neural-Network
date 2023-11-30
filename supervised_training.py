@@ -12,11 +12,11 @@ import pandas as pd
 import time
 from utils import play_game2
 from game_environment import SnakeNumpy
-from agent import BreadthFirstSearchAgent, SupervisedLearningAgent
+from agent_old import BreadthFirstSearchAgent, SupervisedLearningAgent
 import json
 
 # some global variables
-version = 'v15.5'
+version = 'v17.1'
 
 # get training configurations
 with open('model_config/{:s}.json'.format(version), 'r') as f:
@@ -29,8 +29,8 @@ with open('model_config/{:s}.json'.format(version), 'r') as f:
     obstacles = bool(m['obstacles'])
 
 max_time_limit = 28 # 998
-generate_training_data = False
-do_training = True
+generate_training_data = True
+do_training = False
 n_games_training = 100
 
 # setup the environment
@@ -77,7 +77,6 @@ if(do_training):
         # read the saved training data
         file_path = 'models/{:s}'.format(version)
         agent.load_buffer(file_path=file_path, iteration=((index%total_files)+1))
-        print(agent.get_buffer_size())
         # make small changes to the buffer and slowly train
         loss = agent.train_agent(epochs=20)
         print('Loss at buffer {:d} is : {:.5f}'.format((index%total_files)+1, loss))

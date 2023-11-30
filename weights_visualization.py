@@ -9,7 +9,7 @@ import sys
 
 # some global variables
 version = 'v15.1'
-iteration = 188000
+iteration = 129000
 
 with open('model_config/{:s}.json'.format(version), 'r') as f:
     m = json.loads(f.read())

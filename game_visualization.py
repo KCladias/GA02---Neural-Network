@@ -1,7 +1,6 @@
 # script to visualize how agent plays a game
 # useful to study different iterations
 
-import numpy as np
 from agent import DeepQLearningAgent
 from game_environment import Snake, SnakeNumpy
 from utils import visualize_game
@@ -19,8 +18,7 @@ with open('model_config/{:s}.json'.format(version), 'r') as f:
     n_actions = m['n_actions']
     obstacles = bool(m['obstacles'])
 
-iteration_list = [200000]
-max_time_limit = 398
+iteration_list = [252000]
 
 # setup the environment
 env = Snake(board_size=board_size, frames=frames, max_time_limit=max_time_limit,
@@ -35,7 +33,7 @@ agent = DeepQLearningAgent(board_size=board_size, frames=frames,
 
 
 for iteration in iteration_list:
-    agent.save_model(file_path='models/{:s}'.format(version), iteration=iteration)
+    agent.load_model(file_path='models/{:s}'.format(version), iteration=iteration)
     
     for i in range(5):
         visualize_game(env, agent,
